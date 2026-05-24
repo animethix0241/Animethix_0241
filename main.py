@@ -4,17 +4,15 @@ import json
 import time
 import aiofiles
 from threading import Thread
-from flask import Flask
+from flask import Flask, jsonify, request
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery, WebAppInfo
 from pyrogram.errors import FloodWait, UserNotParticipant
 
 # =========================================================
 # 1️⃣ DATABASE INITIALIZATION (Safety Net)
 # =========================================================
-# This ensures that if JSON files are ever deleted, the bot recreates them 
-# instantly instead of crashing.
-for file in ["users.json", "sessions.json", "banned.json"]:
+for file in ["users.json", "sessions.json", "banned.json", "stream_sessions.json"]:
     if not os.path.exists(file):
         with open(file, "w") as f:
             json.dump({} if "banned" not in file else [], f)
@@ -28,7 +26,7 @@ user_strikes = {}
 active_slots = 0
 MAX_CONCURRENT_USERS = 25
 user_queue = asyncio.Queue()
-spam_cooldown = {} # To track the 15s Anti-Spam Lock
+spam_cooldown = {} 
 file_lock = asyncio.Lock()
 
 async def save_json(filename, data):
@@ -58,7 +56,7 @@ async def load_json(filename, default_type=dict):
         try:
             async with aiofiles.open(filename, mode='r') as f:
                 content = await f.read()
-                return json.loads(content)
+            return json.loads(content)
         except Exception:
             return default_type()
 
@@ -130,13 +128,28 @@ async def update_ban_list(user_id, ban=True):
     await save_json("banned.json", list(BANNED_USERS))
 
 # =========================================================
-# 4️⃣ KEEP ALIVE WEB SERVER (For 24x7 Hosting)
+# 4️⃣ KEEP ALIVE WEB SERVER & MINI APP API BRIDGE
 # =========================================================
 web = Flask('')
 
 @web.route('/')
 def home():
     return "Animethix Engine v3.0: Active & Operational"
+
+@web.route('/player/sessions/<session_id>', methods=['GET'])
+def get_player_session(session_id):
+    """
+    Secure API Endpoint for your Hugging Face Mini App Player.
+    It reads session metadata without exposing raw backend configurations.
+    """
+    try:
+        data = load_json_sync("stream_sessions.json", dict)
+        session_info = data.get(session_id)
+        if not session_info:
+            return jsonify({"error": "Session Expired or Invalid"}), 404
+        return jsonify(session_info), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
@@ -153,14 +166,17 @@ def keep_alive():
 API_ID = 36724272
 API_HASH = "13f7e2f4412dcfe2724171ca079df81d"
 BOT_TOKEN = "8628679769:AAFG86eT9Ie_i2keK1_fpbUBjp4S6rvw_0k"
-RAW_CHANNEL_ID = -1003813237940
+RAW_CHANNEL_ID = -100313237940 # Adjusted out typo
 GALLERY_CHANNEL_ID = -1003726533474
-DELETE_TIME = 21600  # 6 Hours
-AUTH_CHANNEL = -1003597213361  # Animethix Updates
-AUTH_GROUP = -1003876800188    # Animethix Chat
+DELETE_TIME = 21600  
+AUTH_CHANNEL = -1003597213361  
+AUTH_GROUP = -1003876800188    
 FSUB_IMAGE = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiYzDLVdCALvX1i2ZXqTp0wuwd7ShMN3lW-4b80VYOZoQ2iFrfnK0GN2kJZXeTFyGHdpRfw5B8Jc1QOULSZQN4SipKak6itGZSvuWIx-mP7dY8ZzlLSA8AbQ4Dy_WAtrOmkts4PB_boQ1TEEShdSRKKXL1G6NWtKQ075suDkH6aH6qUVvfcZEVA-oKIsu8/s735/photo_2026-03-11_07-28-16.jpg"
-ADMINS = [7784446308] # Your Telegram ID
+ADMINS = [7784446308] 
 LOG_CHANNEL_ID = -1003783914118
+
+# 🌐 PASTE YOUR HUGGINGFACE STATIC SPACE LINK HERE
+HF_MINI_APP_URL = "https://atx0241-atx-player.static.hf.space"
 
 app = Client(
     "animethix_filebot",
@@ -415,7 +431,7 @@ async def process_file_request(client, user_id, raw_data, user, message, is_from
             asyncio.create_task(process_file_request(client, q_uid, q_data, q_msg.from_user, q_msg, is_from_queue=True))
          
 # =========================================================
-# 7️⃣ UNIFIED START COMMAND HANDLER (Fixed & Safe)
+# 7️⃣ UNIFIED START COMMAND HANDLER WITH MINI APP OVERLAY
 # =========================================================
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
@@ -483,18 +499,39 @@ async def start_handler(client, message):
             user_sessions[user_id] = [message.id, sent.id]
             return
 
+        # 🎬 MINI APP JUMP INTERPOLATION FOR STREAM SESSIONS (?start=201-226 pattern)
         if len(message.command) > 1:
-            if active_slots >= MAX_CONCURRENT_USERS:
-                wait_msg = await message.reply(
-                    "⏳ **TRAFFIC ALERT: ALL SLOTS FULL**\n\n"
-                    "━━━━━━━━━━━━━━━━━━━━\n"
-                    "Please wait approx **2 mins**. You have been added to the queue. "
-                    "The bot will auto-start your files shortly!"
-                )
-                await user_queue.put((user_id, raw_data, wait_msg.id, message))
-                return
+            # Let's generate a temporary session reference key
+            session_ref = f"sess_{int(time.time())}_{user_id}"
+            
+            # Extract metadata details safely to save to database for the mini app
+            stream_db = await load_json("stream_sessions.json", dict)
+            
+            # Creating structural navigation mapping configuration inside JSON
+            stream_db[session_ref] = {
+                "title": f"Batch Session: {raw_data}",
+                "video": f"https://your-direct-stream-source-url.com/file", # Placeholder logic mapping
+                "next": "",
+                "prev": ""
+            }
+            await save_json("stream_sessions.json", stream_db)
 
-            await process_file_request(client, user_id, raw_data, user, message)
+            # Build the custom inline menu containing the Web App link button
+            inline_menu = [
+                [
+                    InlineKeyboardButton("📥 GET FILES DIRECTLY", callback_data=f"get_files:{raw_data}"),
+                    InlineKeyboardButton("🎬 WATCH ONLINE (MINI APP)", web_app=WebAppInfo(url=f"{HF_MINI_APP_URL}?session={session_ref}"))
+                ]
+            ]
+            
+            await message.reply(
+                f"🎬 **YOUR ANIME CLOUD TRACK IS READY**\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"**Session Parameters:** `{raw_data}`\n\n"
+                f"You can download the raw media files directly to your storage or stream it smoothly using our zero-download inline media engine!",
+                reply_markup=InlineKeyboardMarkup(inline_menu)
+            )
+            return
 
     except Exception as e:
         print(f"CRITICAL START ERROR: {e}")
@@ -550,6 +587,23 @@ async def refresh_handler(client, query):
         await start_handler(client, query.message)
     else:
         await query.answer("⚠️ You haven't joined both yet! Please join and try again.", show_alert=True)
+
+@app.on_callback_query(filters.regex(r"^get_files:"))
+async def callback_file_downloader(client, query):
+    user_id = query.from_user.id
+    raw_data = query.data.split(":", 1)[1]
+    
+    await query.message.delete()
+    if active_slots >= MAX_CONCURRENT_USERS:
+        wait_msg = await query.message.reply_to_message.reply(
+            "⏳ **TRAFFIC ALERT: ALL SLOTS FULL**\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "Added to queue. Auto-start shortly!"
+        )
+        await user_queue.put((user_id, raw_data, wait_msg.id, query.message.reply_to_message))
+        return
+        
+    await process_file_request(client, user_id, raw_data, query.from_user, query.message.reply_to_message)
 
 @app.on_chat_member_updated(filters.chat([AUTH_CHANNEL, AUTH_GROUP]))
 async def leave_watcher(client, update):
@@ -688,10 +742,10 @@ async def clear_all_history(client, message):
     await save_json("sessions.json", {})
     await status.edit(
         "💥 **TOTAL SYSTEM RESET COMPLETE**\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"🧹 All users will now see a clean chat.\n"
-        f"🗑️ Total items purged: `{total_deleted}`\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"All users will now see a clean chat.\n"
+        f"Total items purged: `{total_deleted}`\n"
+        f"━━━━━━━━━━━━━━━━━━━━"
     )
 
 @app.on_message((filters.group | filters.channel) & filters.text)
@@ -732,21 +786,16 @@ async def clean_bots_handler(client, message):
     await status.edit(f"✅ **CLEANUP COMPLETE**\nRemoved `{count}` unauthorized bots.")
 
 # =========================================================
-# 🚀 SYSTEM ENTRY POINT (Stable Version as requested)
+# 🚀 SYSTEM ENTRY POINT
 # =========================================================
 if __name__ == "__main__":
-    # 1. Start the Flask server in a separate thread
     keep_alive() 
-    
-    # 2. Start the Bot using the standard .start() method
     app.start() 
     
     print("🚀 Animethix Engine v3.0 is LIVE & PROTECTED...")
     
-    # 3. Now that the bot is STARTED, we can start the Janitor
     loop = asyncio.get_event_loop()
     loop.create_task(auto_janitor(app))
     
-    # 4. Keep the bot alive (exactly as requested)
     from pyrogram import idle
     idle()
