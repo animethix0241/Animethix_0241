@@ -1,10 +1,33 @@
 import os
 import json
 import time
+from threading import Thread
+from flask import Flask
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
-# Ensure the database file exists so it never crashes
+# =========================================================
+# 1️⃣ TINY WEB SERVER FOR RENDER PORT BINDING
+# =========================================================
+web = Flask('')
+
+@web.route('/')
+def home():
+    return "Mini App Engine: Active"
+
+def run_web():
+    # Render automatically passes the port number inside os.environ
+    port = int(os.environ.get("PORT", 8080))
+    web.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.daemon = True
+    t.start()
+
+# =========================================================
+# 2️⃣ DATABASE SETUP
+# =========================================================
 if not os.path.exists("stream_sessions.json"):
     with open("stream_sessions.json", "w") as f:
         json.dump({}, f)
@@ -20,7 +43,9 @@ def save_session_sync(session_id, data):
     with open("stream_sessions.json", "w") as f:
         json.dump(database, f, indent=4)
 
-# CONFIGURATION
+# =========================================================
+# 3️⃣ BOT CONFIGURATION & HANDLER
+# =========================================================
 API_ID = 36724272
 API_HASH = "13f7e2f4412dcfe2724171ca079df81d"
 BOT_TOKEN = "8628679769:AAFG86eT9Ie_i2keK1_fpbUBjp4S6rvw_0k"
@@ -35,24 +60,20 @@ app = Client(
 
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
-    # Check if there are parameters after /start (e.g., /start 201-226)
     if len(message.command) > 1:
         raw_data = message.command[1]
         user_id = message.chat.id
         
-        # Create a temporary unique key for this stream session
         session_ref = f"sess_{int(time.time())}_{user_id}"
         
-        # Save the requested file details so your Mini App can fetch it via API later
         session_data = {
             "title": f"Batch Session: {raw_data}",
-            "video": "https://your-direct-stream-source-url.com/file",  # Layout placeholder
+            "video": "https://your-direct-stream-source-url.com/file",  
             "next": "",
             "prev": ""
         }
         save_session_sync(session_ref, session_data)
 
-        # Build the menu button that opens your HuggingFace Mini App
         inline_menu = [
             [
                 InlineKeyboardButton(
@@ -70,12 +91,19 @@ async def start_handler(client, message):
             reply_markup=InlineKeyboardMarkup(inline_menu)
         )
     else:
-        # Fallback if someone just types plain /start without links
         await message.reply(
             "👋 **Welcome!**\n\n"
             "Please use a valid link from your website to test the Mini App stream tracking functionality."
         )
 
+# =========================================================
+# 4️⃣ SYSTEM ENTRY POINT
+# =========================================================
 if __name__ == "__main__":
+    # Start the web server first so Render detects port binding instantly
+    print("🛰️ Starting web server for Render port check...")
+    keep_alive()
+    
+    # Start the bot
     print("🚀 Mini App Tester Bot is starting...")
     app.run()
