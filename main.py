@@ -1,4 +1,4 @@
-import asyncio
+import asyncio 
 import os
 import json
 import time
@@ -185,10 +185,10 @@ app = Client(
 async def send_log(client, user, action, detail="None"):
     try:
         log_text = (
-            f"👤 **USER:** {user.first_name} (ID: `{user.id}`)\n"
+            f"👤 **USER:** {user.first_name} (ID: {user.id})\n"
             f"🔗 **USERNAME:** @{user.username if user.username else 'N/A'}\n"
-            f"🛠️ **ACTION:** `{action}`\n"
-            f"📦 **DETAILS:** `{detail}`\n"
+            f"🛠️ **ACTION:** {action}\n"
+            f"📦 **DETAILS:** {detail}\n"
             f"⏰ **TIME:** {time.strftime('%Y-%m-%d %H:%M:%S')}"
         )
         await client.send_message(LOG_CHANNEL_ID, log_text)
@@ -230,7 +230,7 @@ async def vaporize_protocol(client, chat_id):
                     f"🚨 **MEMBERSHIP REVOKED**\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"User left official channels. Purging data...\n"
-                    f"`[{bar}] {i}s`"
+                    f"[{bar}] {i}s"
                 )
                 await asyncio.sleep(1)
             message_ids.append(warn.id) 
@@ -517,7 +517,7 @@ async def start_handler(client, message):
             await message.reply(
                 f"🎬 **YOUR ANIME CLOUD TRACK IS READY**\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"**Session Parameters:** `{raw_data}`\n\n"
+                f"**Session Parameters:** {raw_data}\n\n"
                 f"You can download the raw media files directly to your storage or stream it smoothly using our zero-download inline media engine!",
                 reply_markup=InlineKeyboardMarkup(inline_menu)
             )
@@ -576,6 +576,7 @@ async def callback_file_downloader(client, query):
         return
         
     await process_file_request(client, user_id, raw_data, query.from_user, query.message.reply_to_message)
+
 async def refresh_handler(client, query):
     user_id = query.from_user.id
     raw_data = query.data.split(":", 1)[1]
@@ -655,7 +656,7 @@ async def broadcast_handler(client, message):
 @app.on_message(filters.command("ban") & filters.user(ADMINS))
 async def ban_command(client, message):
     if len(message.command) < 2:
-        return await message.reply("❌ **Usage:** `/ban user_id`")
+        return await message.reply("❌ **Usage:** /ban user_id")
     try:
         target_id = int(message.text.split(None, 1)[1])
         await update_ban_list(target_id, ban=True)
@@ -666,7 +667,7 @@ async def ban_command(client, message):
 @app.on_message(filters.command("unban") & filters.user(ADMINS))
 async def unban_command(client, message):
     if len(message.command) < 2:
-        return await message.reply("❌ **Usage:** `/unban user_id`")
+        return await message.reply("❌ **Usage:** /unban user_id")
     try:
         target_id = int(message.text.split(None, 1)[1])
         await update_ban_list(target_id, ban=False)
@@ -685,20 +686,20 @@ async def stats_handler(client, message):
     await message.reply(
         f"📊 **Animethix Engine Stats**\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 Total Users: `{len(users)}` \n"
-        f"🚫 Banned Users: `{len(banned)}` \n"
-        f"📦 Active Batches: `{active_batches}` \n"
+        f"👤 Total Users: {len(users)} \n"
+        f"🚫 Banned Users: {len(banned)} \n"
+        f"📦 Active Batches: {active_batches} \n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
 
 @app.on_message(filters.command("info") & filters.user(ADMINS))
 async def info_handler(client, message):
     if len(message.command) < 2:
-        return await message.reply("❌ **Usage:** `/info user_id` or reply to a user.")
+        return await message.reply("❌ **Usage:** /info user_id or reply to a user.")
     target_id = int(message.command[1])
     try:
         u = await client.get_users(target_id)
-        await message.reply(f"👤 **Name:** {u.first_name}\n🆔 **ID:** `{u.id}`\n🔗 **User:** @{u.username}")
+        await message.reply(f"👤 **Name:** {u.first_name}\n🆔 **ID:** {u.id}\n🔗 **User:** @{u.username}")
     except Exception as e:
         await message.reply(f"❌ Error: {e}")
 
@@ -732,7 +733,7 @@ async def clear_all_history(client, message):
         "💥 **TOTAL SYSTEM RESET COMPLETE**\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         f"🧹 All users will now see a clean chat.\n"
-        f"🗑️ Total items purged: `{total_deleted}`\n"
+        f"🗑️ Total items purged: {total_deleted}\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
 
@@ -771,10 +772,10 @@ async def clean_bots_handler(client, message):
                 count += 1
             except:
                 pass
-    await status.edit(f"✅ **CLEANUP COMPLETE**\nRemoved `{count}` unauthorized bots.")
+    await status.edit(f"✅ **CLEANUP COMPLETE**\nRemoved {count} unauthorized bots.")
 
 # =========================================================
-# 🚀 SYSTEM ENTRY POINT (Stable Version as requested)
+# 🚀 SYSTEM ENTRY POINT
 # =========================================================
 if __name__ == "__main__":
     # 1. Start the Flask server in a separate thread
@@ -789,6 +790,6 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(auto_janitor(app))
     
-    # 4. Keep the bot alive (exactly as requested)
+    # 4. Keep the bot alive
     from pyrogram import idle
     idle()
