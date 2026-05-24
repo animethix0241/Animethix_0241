@@ -562,7 +562,6 @@ async def handle_strike(client, message, reason):
 # =========================================================
 @app.on_callback_query(filters.regex(r"^(check|get_files):"))
 async def callback_file_downloader(client, query):
-async def callback_file_downloader(client, query):
     user_id = query.from_user.id
     raw_data = query.data.split(":", 1)[1]
     
