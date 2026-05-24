@@ -4,9 +4,9 @@ import json
 import time
 import aiofiles
 from threading import Thread
-from flask import Flask
+from flask import Flask, jsonify
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery, WebAppInfo
 from pyrogram.errors import FloodWait, UserNotParticipant
 
 # =========================================================
@@ -560,8 +560,8 @@ async def handle_strike(client, message, reason):
 # =========================================================
 # 8️⃣ CALLBACK & WATCHERS
 # =========================================================
-@app.on_callback_query(filters.regex(r"^check:"))
-@app.on_callback_query(filters.regex(r"^get_files:"))
+@app.on_callback_query(filters.regex(r"^(check|get_files):"))
+async def callback_file_downloader(client, query):
 async def callback_file_downloader(client, query):
     user_id = query.from_user.id
     raw_data = query.data.split(":", 1)[1]
