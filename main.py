@@ -135,6 +135,8 @@ async def update_ban_list(user_id, ban=True):
 web = Flask('')
 
 @web.route('/')
+def home():
+    return "Animethix Engine v3.0: Active & Operational"
 @web.route('/player/sessions/<session_id>', methods=['GET'])
 def get_player_session(session_id):
     try:
@@ -145,9 +147,6 @@ def get_player_session(session_id):
         return jsonify(session_info), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-def home():
-    return "Animethix Engine v3.0: Active & Operational"
-
 def run_web():
     port = int(os.environ.get("PORT", 8080))
     web.run(host='0.0.0.0', port=port)
